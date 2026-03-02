@@ -16,8 +16,6 @@ public interface DropSessionNoteRepository extends JpaRepository<DropSessionNote
     
     long deleteBySession_Id(UUID sessionId);
 
-    List<DropSessionNote> findBySession_IdOrderByCreatedAtAsc(UUID sessionId, Pageable pageable);
-
     @Modifying
     void deleteBySender(DropSessionParticipant sender);
 }
