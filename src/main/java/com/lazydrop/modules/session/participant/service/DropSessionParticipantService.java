@@ -63,7 +63,9 @@ public class DropSessionParticipantService {
         PeerJoinedPayload payload = new PeerJoinedPayload(
                 participant.getId().toString(),
                 participant.getUser().getId().toString(),
-                participant.getRole().name()
+                participant.getRole().name(),
+                user.isGuest() ? "Guest" : user.getEmail(),
+                user.isGuest()
         );
 
         webSocketNotifier.sendEventAfterCommit(session.getId().toString(), MessageType.PEER_JOINED, payload);
@@ -129,20 +131,17 @@ public class DropSessionParticipantService {
     }
 
     @Transactional
-    public void cleanupDisconnected(Duration maxDisconnectDuration) {
+    public int cleanupDisconnected(Duration maxDisconnectDuration) {
         Instant cutoff = Instant.now().minus(maxDisconnectDuration);
         List<DropSessionParticipant> toRemove = participantRepository.findByDisconnectedAtBefore(cutoff);
-        int removedCount = 0;
 
         for (DropSessionParticipant p : toRemove) {
+            log.debug("Removing disconnected participant: participantId={} sessionId={}",
+                    p.getId(), p.getDropSession().getId());
             participantRepository.delete(p);
-            removedCount++;
-            log.info("Removed disconnected participant: participantId={} userId={} from sessionId={}",
-                    p.getId(),
-                    p.getUser() != null ? p.getUser().getId() : "unknown",
-                    p.getDropSession().getId());
         }
-        log.info("Cleanup disconnected participants complete. Total removed: {}", removedCount);
+
+        return toRemove.size();
     }
 
     public List<DropSessionParticipant> getParticipants(DropSession session) {

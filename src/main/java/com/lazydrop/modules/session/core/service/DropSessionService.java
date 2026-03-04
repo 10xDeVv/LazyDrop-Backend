@@ -20,6 +20,7 @@ import com.lazydrop.modules.websocket.payload.DropSessionExpiredPayload;
 import com.lazydrop.utility.CodeUtility;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,31 +44,41 @@ public class DropSessionService {
     private final WebSocketNotifier webSocketNotifier;
     private final ApplicationEventPublisher applicationEventPublisher;
 
+    @Value("${app.join.base.url}")
+    private String joinBaseUrl;
+
+    private static final int MAX_CODE_RETRIES = 5;
+
     @Transactional
     public DropSession createDropSession(User owner){
         planEnforcementService.checkSessionCreationLimit(owner);
         PlanLimits limits = subscriptionService.getLimitsForUser(owner);
 
-        String code = codeUtility.newAlphaNumericCode(8);
-
         Instant now = Instant.now();
         Instant expiresAt = now.plus(limits.sessionExpiryMinutes(), ChronoUnit.MINUTES);
 
+        DropSession saved = null;
+        for (int attempt = 0; attempt < MAX_CODE_RETRIES; attempt++) {
+            String code = codeUtility.newAlphaNumericCode(8);
+            DropSession session = DropSession.builder()
+                    .owner(owner)
+                    .code(code)
+                    .createdAt(now)
+                    .expiresAt(expiresAt)
+                    .status(DropSessionStatus.OPEN)
+                    .build();
+            try {
+                saved = dropSessionRepository.saveAndFlush(session);
+                break;
+            } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+                if (attempt == MAX_CODE_RETRIES - 1) {
+                    throw new IllegalStateException("Failed to generate a unique session code after " + MAX_CODE_RETRIES + " attempts", ex);
+                }
+                log.warn("Session code collision on attempt {}, retrying...", attempt + 1);
+            }
+        }
 
-        DropSession session = DropSession.builder()
-                .owner(owner)
-                .code(code)
-                .createdAt(now)
-                .expiresAt(expiresAt)
-                .status(DropSessionStatus.OPEN)
-                .build();
-
-        DropSession saved = dropSessionRepository.save(session);
-
-        participantService.ensureOwnerParticipant(session, owner);
-
-
-        dropSessionRepository.save(saved);
+        participantService.ensureOwnerParticipant(saved, owner);
 
         DropSessionCreatedPayload payload = new DropSessionCreatedPayload(
                 saved.getId().toString(),
@@ -86,7 +97,7 @@ public class DropSessionService {
     public String generateQrCode(UUID sessionId){
         DropSession session = dropSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("DropSession with id " + sessionId + " not found"));
-        return "http://localhost:3000/join?code=" + session.getCode();
+        return String.format(joinBaseUrl, session.getCode());
     }
 
 
@@ -124,7 +135,7 @@ public class DropSessionService {
     }
 
     @Transactional
-    public void cleanUpExpiredSession(){
+    public int cleanUpExpiredSessions(){
         Instant now = Instant.now();
         List<DropSession> toExpire =
                 dropSessionRepository.findByStatusInAndExpiresAtBefore(
@@ -133,6 +144,7 @@ public class DropSessionService {
                 );
 
         toExpire.forEach(session -> endSession(session, SessionEndReason.EXPIRED));
+        return toExpire.size();
     }
 
     @Transactional

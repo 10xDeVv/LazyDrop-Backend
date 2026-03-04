@@ -57,8 +57,10 @@ class DropSessionServiceIntegrationTest {
         registry.add("spaces.bucket-name", () -> "test-bucket");
         registry.add("spaces.access-key", () -> "test_access_key");
         registry.add("spaces.secret-key", () -> "test_secret_key");
+        registry.add("spaces.cdn-endpoint", () -> "");
         registry.add("cors.allowed-origins", () -> "http://localhost:3000");
         registry.add("app.frontend-url", () -> "http://localhost:3000");
+        registry.add("app.join.base.url", () -> "http://localhost:3000/join?code=%s");
     }
 
     @Autowired

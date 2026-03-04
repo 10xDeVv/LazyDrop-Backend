@@ -86,6 +86,7 @@ public class SubscriptionService {
         subscriptionRepository.save(subscription);
     }
 
+    @Transactional
     public Subscription updateSubscription(Subscription subscription){
         return subscriptionRepository.save(subscription);
     }

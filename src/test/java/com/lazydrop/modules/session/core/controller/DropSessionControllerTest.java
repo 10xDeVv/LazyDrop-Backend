@@ -3,6 +3,8 @@ package com.lazydrop.modules.session.core.controller;
 import com.lazydrop.auth.IdentityResolver;
 import com.lazydrop.modules.session.core.model.DropSession;
 import com.lazydrop.modules.session.core.service.DropSessionService;
+import com.lazydrop.modules.session.file.repository.DropFileRepository;
+import com.lazydrop.modules.session.participant.repository.DropSessionParticipantRepository;
 import com.lazydrop.security.UserPrincipal;
 import com.lazydrop.modules.user.model.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,6 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(DropSessionController.class)
+@TestPropertySource(properties = "app.join.base.url=http://localhost:3000/join?code=%s")
 @DisplayName("DropSessionController Tests")
 class DropSessionControllerTest {
 
@@ -37,6 +41,12 @@ class DropSessionControllerTest {
 
     @MockitoBean
     private IdentityResolver identityResolver;
+
+    @MockitoBean
+    private DropSessionParticipantRepository participantRepository;
+
+    @MockitoBean
+    private DropFileRepository dropFileRepository;
 
     private User testUser;
     private DropSession testSession;

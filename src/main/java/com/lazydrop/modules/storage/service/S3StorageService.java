@@ -2,10 +2,9 @@ package com.lazydrop.modules.storage.service;
 
 import com.lazydrop.config.SpacesProperties;
 import com.lazydrop.modules.session.file.dto.SignedUploadResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -14,18 +13,29 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class S3StorageService implements StorageService {
 
     private final S3Client s3Client;
-    private final S3Presigner s3Presigner;
+    private final S3Presigner originPresigner;
+    private final S3Presigner cdnPresigner;
     private final SpacesProperties spaces;
+
+    public S3StorageService(
+            S3Client s3Client,
+            @Qualifier("originPresigner") S3Presigner originPresigner,
+            @Qualifier("cdnPresigner") S3Presigner cdnPresigner,
+            SpacesProperties spaces
+    ) {
+        this.s3Client = s3Client;
+        this.originPresigner = originPresigner;
+        this.cdnPresigner = cdnPresigner;
+        this.spaces = spaces;
+    }
 
     @Override
     public SignedUploadResponse createSignedUploadUrl(String folderPrefix, String fileName, String contentType, int expiresInSec) {
@@ -42,32 +52,17 @@ public class S3StorageService implements StorageService {
                 .putObjectRequest(putRequest)
                 .build();
 
-        String signedUrl = s3Presigner.presignPutObject(presignRequest).url().toString();
+        // Uploads always go to origin (CDN doesn't accept writes)
+        String signedUrl = originPresigner.presignPutObject(presignRequest).url().toString();
 
         log.info("Created signed upload URL for: {} (expires in {} sec)", fileName, expiresInSec);
 
         return SignedUploadResponse.builder()
                 .signedUrl(signedUrl)
                 .objectPath(objectPath)
-                .token(null)          // S3 pre-signed URLs are self-contained; no separate token
+                .token(null)
                 .expiresIn(expiresInSec)
                 .build();
-    }
-
-    @Override
-    public String uploadFile(String folderPrefix, String fileName, String contentType, long contentLength, InputStream data) {
-        String objectPath = String.format("%s/%s/%s", folderPrefix, UUID.randomUUID().toString().substring(0, 8), fileName);
-
-        PutObjectRequest putRequest = PutObjectRequest.builder()
-                .bucket(spaces.getBucketName())
-                .key(objectPath)
-                .contentType(contentType)
-                .build();
-
-        s3Client.putObject(putRequest, RequestBody.fromInputStream(data, contentLength));
-
-        log.info("Uploaded file directly: {} ({} bytes)", fileName, contentLength);
-        return objectPath;
     }
 
     @Override
@@ -83,9 +78,10 @@ public class S3StorageService implements StorageService {
                 .getObjectRequest(getRequest)
                 .build();
 
-        String signedUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
+        // Downloads go through CDN for edge caching
+        String signedUrl = cdnPresigner.presignGetObject(presignRequest).url().toString();
 
-        log.info("Created signed download URL (expires in {} sec)", expiresInSec);
+        log.info("Created signed CDN download URL (expires in {} sec)", expiresInSec);
         return signedUrl;
     }
 

@@ -23,6 +23,8 @@ public class SubscriptionDowngradeScheduler {
     @Scheduled(fixedDelay = 10 * 60 * 1000)
     @Transactional
     public void downgradeExpiredCanceledSubscriptions() {
+        log.debug("Tick: downgradeExpiredCanceledSubscriptions");
+
         Instant now = Instant.now();
 
         List<Subscription> subs = subscriptionRepository
@@ -40,6 +42,6 @@ public class SubscriptionDowngradeScheduler {
 
         subscriptionRepository.saveAll(subs);
 
-        log.info("Downgraded {} expired canceled subscriptions at {}", subs.size(), now);
+        log.info("Downgraded {} expired canceled subscription(s)", subs.size());
     }
 }

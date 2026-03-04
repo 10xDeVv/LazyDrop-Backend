@@ -22,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -59,6 +60,8 @@ class DropSessionServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(dropSessionService, "joinBaseUrl", "http://localhost:3000/join?code=%s");
+
         testUser = User.builder()
                 .id(UUID.randomUUID())
                 .email("test@example.com")
@@ -93,7 +96,7 @@ class DropSessionServiceTest {
                 .status(DropSessionStatus.OPEN)
                 .createdAt(Instant.now())
                 .build();
-        when(dropSessionRepository.save(any(DropSession.class))).thenReturn(expectedSession);
+        when(dropSessionRepository.saveAndFlush(any(DropSession.class))).thenReturn(expectedSession);
 
         // Act
         DropSession result = dropSessionService.createDropSession(testUser);
@@ -111,7 +114,7 @@ class DropSessionServiceTest {
         verify(planEnforcementService).checkSessionCreationLimit(testUser);
         verify(subscriptionService).getLimitsForUser(testUser);
         verify(codeUtility).newAlphaNumericCode(8);
-        verify(dropSessionRepository, times(2)).save(any());
+        verify(dropSessionRepository).saveAndFlush(any());
         verify(participantService).ensureOwnerParticipant(any(), eq(testUser));
     }
 

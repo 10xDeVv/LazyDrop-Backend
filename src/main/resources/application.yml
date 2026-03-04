@@ -31,8 +31,8 @@ spring:
       enabled: always
   servlet:
     multipart:
-      max-file-size: 2048MB
-      max-request-size: 2048MB
+      max-file-size: 10MB
+      max-request-size: 10MB
 supabase:
   url: ${SUPABASE_URL}
   anon-key: ${SUPABASE_ANON_KEY}
@@ -44,9 +44,22 @@ spaces:
   bucket-name: ${SPACES_BUCKET}
   access-key: ${SPACES_ACCESS_KEY}
   secret-key: ${SPACES_SECRET_KEY}
+  cdn-endpoint: ${SPACES_CDN_ENDPOINT:}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+management:
+  server:
+    base-path: /
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 app:
   frontend-url: ${APP_FRONTEND_URL}

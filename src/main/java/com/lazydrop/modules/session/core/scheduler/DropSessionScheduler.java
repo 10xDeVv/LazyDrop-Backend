@@ -17,18 +17,22 @@ public class DropSessionScheduler {
     private final DropSessionService dropSessionService;
     private final DropSessionParticipantService participantService;
 
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedRate = 60_000)
     public void expireSessions() {
-        log.info("Running scheduled cleanup: expireSessions");
-        dropSessionService.cleanUpExpiredSession();
+        log.debug("Tick: expireSessions");
+        int expired = dropSessionService.cleanUpExpiredSessions();
+        if (expired > 0) {
+            log.info("Expired {} session(s)", expired);
+        }
     }
 
-
-    @Scheduled(fixedRate = 300000)
+    @Scheduled(fixedRate = 300_000)
     public void cleanupDisconnectedParticipants() {
-        Duration maxDisconnectDuration = Duration.ofMinutes(5);
-        log.info("Running scheduled cleanup: cleanupDisconnectedParticipants (maxDisconnectDuration = {} min)",
-                maxDisconnectDuration.toMinutes());
-        participantService.cleanupDisconnected(maxDisconnectDuration);
+        log.debug("Tick: cleanupDisconnectedParticipants");
+        Duration maxDisconnect = Duration.ofMinutes(5);
+        int removed = participantService.cleanupDisconnected(maxDisconnect);
+        if (removed > 0) {
+            log.info("Removed {} disconnected participant(s)", removed);
+        }
     }
 }

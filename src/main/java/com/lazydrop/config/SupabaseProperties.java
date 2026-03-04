@@ -11,6 +11,5 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "supabase")
 public class SupabaseProperties {
-
     private String url;
 }

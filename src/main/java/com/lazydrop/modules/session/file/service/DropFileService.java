@@ -32,7 +32,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 
-import java.io.InputStream;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -60,8 +59,6 @@ public class DropFileService {
 
         requireParticipant(session, uploader);
 
-        long currentFileCount = dropFileRepository.countByDropSession(session);
-
         planEnforcementService.checkFileUploadLimits(session, contentLength);
 
         return storageService.createSignedUploadUrl(sessionId.toString(), fileName, contentType, expiresInSec);
@@ -84,49 +81,6 @@ public class DropFileService {
                 .storagePath(request.getObjectPath())
                 .originalName(request.getOriginalName())
                 .sizeBytes(request.getSizeBytes())
-                .createdAt(Instant.now())
-                .build();
-
-        file = dropFileRepository.save(file);
-
-        FileUploadedPayload payload = new FileUploadedPayload(
-                file.getId().toString(),
-                file.getOriginalName(),
-                file.getSizeBytes(),
-                file.getUploader().getId().toString(),
-                participant.getId().toString(),
-                file.getCreatedAt()
-        );
-
-        webSocketNotifier.sendEventAfterCommit(sessionId.toString(), MessageType.FILE_UPLOADED, payload);
-
-        return file;
-    }
-
-    /**
-     * Upload file through the backend (proxied to Spaces) and confirm in one step.
-     * Avoids CORS issues with direct browser → Spaces uploads.
-     */
-    @Transactional
-    public DropFile directUpload(UUID sessionId, User uploader, String fileName, String contentType, long fileSize, InputStream data) {
-        DropSession session = dropSessionService.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("DropSession not found"));
-
-        session.assertUsable();
-
-        DropSessionParticipant participant = requireParticipant(session, uploader);
-
-        planEnforcementService.checkFileUploadLimits(session, fileSize);
-
-        // Upload to Spaces server-side (no CORS needed)
-        String objectPath = storageService.uploadFile(sessionId.toString(), fileName, contentType, fileSize, data);
-
-        DropFile file = DropFile.builder()
-                .dropSession(session)
-                .uploader(uploader)
-                .storagePath(objectPath)
-                .originalName(fileName)
-                .sizeBytes(fileSize)
                 .createdAt(Instant.now())
                 .build();
 
@@ -237,42 +191,40 @@ public class DropFileService {
         DropSession session = dropSessionService.findById(sessionId)
                 .orElseThrow(() -> new ResourceNotFoundException("DropSession with id " + sessionId + " not found"));
 
-        if (session != null){
-            List<DropFile> files = dropFileRepository.findByDropSession(session);
+        List<DropFile> files = dropFileRepository.findByDropSession(session);
 
-            long totalBytes = 0;
-            int fileCount = 0;
+        long totalBytes = 0;
+        int fileCount = 0;
 
-            for(DropFile file : files){
-                try {
-                    storageService.deleteFile(file.getStoragePath());
-                    totalBytes += file.getSizeBytes();
-                    fileCount++;
-                    log.info("Deleted file: fileId={} name={} size={}B from sessionId={}",
-                            file.getId(),
-                            file.getOriginalName(),
-                            file.getSizeBytes(),
-                            sessionId);
-                } catch (Exception e) {
-                    log.warn("Failed to delete file {} from storage", file.getStoragePath(), e);
-                }
+        for(DropFile file : files){
+            try {
+                storageService.deleteFile(file.getStoragePath());
+                totalBytes += file.getSizeBytes();
+                fileCount++;
+                log.info("Deleted file: fileId={} name={} size={}B from sessionId={}",
+                        file.getId(),
+                        file.getOriginalName(),
+                        file.getSizeBytes(),
+                        sessionId);
+            } catch (Exception e) {
+                log.warn("Failed to delete file {} from storage", file.getStoragePath(), e);
             }
-
-            dropFileRepository.deleteByDropSession(session);
-
-            DropSessionFilesCleanedPayload payload = new DropSessionFilesCleanedPayload(
-                    sessionId.toString(),
-                    fileCount,
-                    totalBytes
-            );
-
-            webSocketNotifier.sendEventAfterCommit(sessionId.toString(),
-                    MessageType.DROP_SESSION_FILES_CLEANED,
-                    payload);
-
-            log.info("Cleaned {} files ({} bytes) for session {} ended by {}",
-                    fileCount, totalBytes, sessionId, event.getReason());
         }
+
+        dropFileRepository.deleteByDropSession(session);
+
+        DropSessionFilesCleanedPayload payload = new DropSessionFilesCleanedPayload(
+                sessionId.toString(),
+                fileCount,
+                totalBytes
+        );
+
+        webSocketNotifier.sendEventAfterCommit(sessionId.toString(),
+                MessageType.DROP_SESSION_FILES_CLEANED,
+                payload);
+
+        log.info("Cleaned {} files ({} bytes) for session {} ended by {}",
+                fileCount, totalBytes, sessionId, event.getReason());
     }
 
     private DropSessionParticipant requireParticipant(DropSession session, User user) {

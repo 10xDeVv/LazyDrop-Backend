@@ -126,7 +126,7 @@ Create a `.env` file or configure environment variables:
 Server starts at:
 
 ```
-http://localhost:8080/api/v1
+http://localhost:8080
 ```
 
 ---

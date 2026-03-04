@@ -15,5 +15,7 @@ public record DropSessionResponse(
         long remainingSeconds,
         String ownerId,
         String qrCodeData,
-        String myRole
+        String myRole,
+        int participantCount,
+        long fileCount
 ) {}

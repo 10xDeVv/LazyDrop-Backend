@@ -3,6 +3,8 @@ package com.lazydrop.modules.session.core.controller;
 import com.lazydrop.auth.IdentityResolver;
 import com.lazydrop.common.exception.ResourceNotFoundException;
 import com.lazydrop.modules.session.core.mapper.DropSessionMapper;
+import com.lazydrop.modules.session.file.repository.DropFileRepository;
+import com.lazydrop.modules.session.participant.repository.DropSessionParticipantRepository;
 import com.lazydrop.security.UserPrincipal;
 import com.lazydrop.modules.session.core.dto.DropSessionResponse;
 import com.lazydrop.modules.session.core.model.DropSession;
@@ -12,6 +14,7 @@ import jakarta.annotation.Nullable;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,13 +30,24 @@ public class DropSessionController{
 
     private final DropSessionService dropSessionService;
     private final IdentityResolver identityResolver;
+    private final DropSessionParticipantRepository participantRepository;
+    private final DropFileRepository dropFileRepository;
+
+    @Value("${app.join.base.url}")
+    private String joinBaseUrl;
+
+    private DropSessionResponse mapSession(DropSession session, User user) {
+        int participantCount = (int) participantRepository.countByDropSession(session);
+        long fileCount = dropFileRepository.countByDropSession(session);
+        return DropSessionMapper.toDropSessionResponse(session, user, joinBaseUrl, participantCount, fileCount);
+    }
 
     @PostMapping
     public ResponseEntity<DropSessionResponse> createDropSession(@AuthenticationPrincipal @Nullable UserPrincipal userPrincipal, HttpServletRequest req,
                                                                  HttpServletResponse response){
         User owner = identityResolver.resolve(userPrincipal, req, response);
         DropSession resp = dropSessionService.createDropSession(owner);
-        return ResponseEntity.status(HttpStatus.CREATED).body(DropSessionMapper.toDropSessionResponse(resp, owner));
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapSession(resp, owner));
     }
 
     @GetMapping("/code/{code}")
@@ -45,7 +59,7 @@ public class DropSessionController{
 
         User user = identityResolver.resolve(userPrincipal, req, res);
 
-        return ResponseEntity.ok(DropSessionMapper.toDropSessionResponse(session, user));
+        return ResponseEntity.ok(mapSession(session, user));
     }
 
     @GetMapping("/{sessionId}")
@@ -56,7 +70,7 @@ public class DropSessionController{
                 .orElseThrow(() -> new ResourceNotFoundException("Session not found"));
         User user = identityResolver.resolve(userPrincipal, req, res);
 
-        return ResponseEntity.ok(DropSessionMapper.toDropSessionResponse(session, user));
+        return ResponseEntity.ok(mapSession(session, user));
     }
 
     @GetMapping("/{sessionId}/qr")
@@ -85,7 +99,7 @@ public class DropSessionController{
         var sessions = dropSessionService.getActiveSessionsForUser(owner);
 
         var dtos = sessions.stream()
-                .map(s -> DropSessionMapper.toDropSessionResponse(s, owner))
+                .map(s -> mapSession(s, owner))
                 .toList();
 
         long ownedActive = sessions.stream().filter(s -> s.getOwner().getId().equals(owner.getId())).count();
