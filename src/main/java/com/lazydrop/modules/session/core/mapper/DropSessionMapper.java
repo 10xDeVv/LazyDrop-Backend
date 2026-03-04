@@ -10,13 +10,17 @@ public class DropSessionMapper {
 
     public static DropSessionResponse toDropSessionResponse(DropSession session, User me) {
         boolean isOwner = session.getOwner().getId().equals(me.getId());
+        long remainingSeconds = 0;
+        if (session.getExpiresAt() != null) {
+            remainingSeconds = session.getExpiresAt().getEpochSecond() - Instant.now().getEpochSecond();
+        }
        return DropSessionResponse
                 .builder()
                 .code(session.getCode())
                 .id(session.getId().toString())
                 .ownerId(session.getOwner().getId().toString())
                 .expiresAt(session.getExpiresAt())
-                .remainingSeconds(session.getExpiresAt().getEpochSecond() - Instant.now().getEpochSecond())
+                .remainingSeconds(remainingSeconds)
                 .status(session.getStatus())
                .myRole(isOwner ? "OWNER" : "PEER")
                 .build();

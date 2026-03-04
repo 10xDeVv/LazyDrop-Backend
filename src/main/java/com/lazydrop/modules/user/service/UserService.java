@@ -82,4 +82,8 @@ public class UserService {
     public Optional<User> findBySupabaseUserId(UUID supabaseUserId) {
         return userRepository.findBySupabaseUserId(supabaseUserId);
     }
+
+    public Optional<User> findByEmail(String mail) {
+        return userRepository.findByEmail(mail);
+    }
 }

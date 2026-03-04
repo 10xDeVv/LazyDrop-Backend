@@ -83,7 +83,6 @@ public class PaymentWebhookService {
         for (StripeWebhookEvent row : rows) {
             processRowSafely(row);
 
-            // count success (optional)
             StripeWebhookEvent latest = eventRepo.findByStripeEventId(row.getStripeEventId()).orElseThrow();
             if (latest.getStatus() == StripeWebhookStatus.PROCESSED) processed++;
         }
@@ -137,9 +136,8 @@ public class PaymentWebhookService {
     private void processRowSafely(StripeWebhookEvent row) {
         String eventId = row.getStripeEventId();
 
-        // ✅ claim atomically + lease
         Instant leaseUntil = Instant.now().plus(PROCESSING_LEASE);
-        boolean claimed = txTemplate.execute(status -> {
+        Boolean claimed = txTemplate.execute(status -> {
             int updated = eventRepo.claimWithLease(
                     eventId,
                     StripeWebhookStatus.PROCESSING,
@@ -149,7 +147,7 @@ public class PaymentWebhookService {
             return updated == 1;
         });
 
-        if (!claimed) return;
+        if (claimed == null || !claimed) return;
 
         try {
             Event event = reconstructEvent(row);
@@ -323,7 +321,6 @@ public class PaymentWebhookService {
         sub.setCancelAtPeriodEnd(false);
         sub.setCurrentPeriodEnd(stripePeriodEnd);
 
-        // Product rule: keep paid plan until period end; scheduler flips to FREE later
         if (!stripePeriodEnd.isAfter(Instant.now())) {
             sub.setPlanCode(SubscriptionPlan.FREE);
         }
@@ -338,7 +335,6 @@ public class PaymentWebhookService {
         return SubscriptionPlan.FREE;
     }
 
-    // ---------------- status updates ----------------
     protected void markProcessed(String eventId) {
         txTemplate.executeWithoutResult(status -> {
             StripeWebhookEvent latest = eventRepo.findByStripeEventId(eventId).orElseThrow();
@@ -396,7 +392,6 @@ public class PaymentWebhookService {
 
 
     private Duration backoff(int attempt) {
-        // 1m, 2m, 4m, 8m, 16m... capped at 1h
         long minutes = Math.min(60, (long) Math.pow(2, Math.max(0, attempt - 1)));
         return Duration.ofMinutes(minutes);
     }
@@ -407,20 +402,19 @@ public class PaymentWebhookService {
     }
 
 
-    // local exception used to classify unhandled events as not-errors
     private static class UnhandledStripeEventException extends RuntimeException {
         public UnhandledStripeEventException(String msg) { super(msg); }
     }
 
     private SubscriptionStatus mapStripeStatus(com.stripe.model.Subscription stripeSub) {
-        String s = stripeSub.getStatus(); // Stripe gives string statuses
+        String s = stripeSub.getStatus();
         if (s == null) return SubscriptionStatus.ACTIVE;
 
         return switch (s) {
             case "active", "trialing" -> SubscriptionStatus.ACTIVE;
             case "past_due", "unpaid" -> SubscriptionStatus.PAST_DUE;
             case "canceled" -> SubscriptionStatus.CANCELED;
-            default -> SubscriptionStatus.ACTIVE; // keep sane default
+            default -> SubscriptionStatus.ACTIVE;
         };
     }
 

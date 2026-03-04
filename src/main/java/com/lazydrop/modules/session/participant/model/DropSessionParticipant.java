@@ -24,8 +24,8 @@ import java.util.UUID;
        ),
         indexes = {
             @Index(name = "idx_participant_session", columnList = "drop_session_id"),
-                @Index(name = "idx_participant_user", columnList = "user_id"),                 // ✅ add
-                @Index(name = "idx_participant_user_session", columnList = "user_id,drop_session_id") // ✅ optional but nice
+                @Index(name = "idx_participant_user", columnList = "user_id"),
+                @Index(name = "idx_participant_user_session", columnList = "user_id,drop_session_id")
         }
 )
 public class DropSessionParticipant {

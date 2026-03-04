@@ -23,7 +23,8 @@ public class DropSessionScheduler {
         dropSessionService.cleanUpExpiredSession();
     }
 
-    @Scheduled(fixedRate = 300000) // every 5 minutes
+
+    @Scheduled(fixedRate = 300000)
     public void cleanupDisconnectedParticipants() {
         Duration maxDisconnectDuration = Duration.ofMinutes(5);
         log.info("Running scheduled cleanup: cleanupDisconnectedParticipants (maxDisconnectDuration = {} min)",

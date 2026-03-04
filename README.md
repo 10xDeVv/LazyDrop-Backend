@@ -3,6 +3,7 @@
 LazyDrop is a real-time file sharing and collaboration platform.  
 This repository contains the backend server built with Spring Boot, providing RESTful APIs and WebSocket support for session management, file orchestration, billing, and real-time notifications.
 
+> **Note:** This project was originally built as a SaaS product. It's now open-sourced as a portfolio/learning resource.
 ---
 
 ## 🚀 Overview
@@ -129,7 +130,7 @@ http://localhost:8080/api/v1
 
 ## 🧪 Testing Strategy
 
-LazyDrop follows a layered testing approach:
+The project follows a layered testing approach:
 
 ### Unit Testing
 

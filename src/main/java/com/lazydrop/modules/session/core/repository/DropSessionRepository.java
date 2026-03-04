@@ -42,4 +42,5 @@ public interface DropSessionRepository extends JpaRepository<DropSession, UUID> 
             @Param("now") Instant now
     );
 
+    List<DropSession> findByOwnerAndStatusIn(User testUser, List<DropSessionStatus> open);
 }

@@ -64,7 +64,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex, HttpServletRequest req) {
-        // Typically business state conflicts
         return build(HttpStatus.CONFLICT, "CONFLICT", ex.getMessage(), req, null);
     }
 
